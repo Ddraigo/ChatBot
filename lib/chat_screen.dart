@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'services/gemini_service.dart';
+import 'package:markdown_widget/markdown_widget.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({Key? key}) : super(key: key);
@@ -123,6 +125,7 @@ class _ChatScreenState extends State<ChatScreen> {
               itemBuilder: (_, index) {
                 var msg = messages[index];
                 bool isUser = msg['role'] == 'user';
+                print(msg['content']);
 
                 return Padding(
                   padding:
@@ -146,7 +149,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             gradient: LinearGradient(
                               colors: isUser
                                   ? [Color(0xFF8E2DE2), Color(0xFF4A00E0)]
-                                  : [Color(0xFFFEB692), Color(0xFFEA5455)],
+                                  : [Colors.white, Colors.white],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -164,11 +167,19 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ],
                           ),
-                          child: Text(
-                            msg['content'] ?? '',
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 16),
+                          child: MarkdownBody(
+                            data: msg['content'] ?? '',
+                            styleSheet: MarkdownStyleSheet(
+                              p: const TextStyle(
+                                  color: Colors.black, fontSize: 16),
+                            ),
                           ),
+
+                          // Text(
+                          //   msg['content'] ?? '',
+                          //   style: const TextStyle(
+                          //       color: Colors.white, fontSize: 16),
+                          // ),
                         ),
                       ),
                     ],
