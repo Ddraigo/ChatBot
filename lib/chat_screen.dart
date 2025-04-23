@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'services/gemini_service.dart';
+import 'services/clipboard_service.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter/gestures.dart';
 
@@ -297,14 +297,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                       child: InkWell(
                                         borderRadius: BorderRadius.circular(15),
                                         onTap: () {
-                                          Clipboard.setData(ClipboardData(
-                                              text: msg['content'] ?? ''));
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            const SnackBar(
-                                              content: Text('Đã sao chép vào clipboard'),
-                                              duration: Duration(seconds: 1),
-                                            ),
+                                          // Sử dụng ClipboardService để xử lý đa nền tảng
+                                          ClipboardService.copyToClipboard(
+                                            context, 
+                                            msg['content'] ?? ''
                                           );
                                         },
                                         child: Container(
