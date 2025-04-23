@@ -186,35 +186,39 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       var msg = messages[index];
                       bool isUser = msg['role'] == 'user';
 
-                      // Phần code hiển thị tin nhắn của bạn giữ nguyên
                       return Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                         child: Row(
                           mainAxisAlignment: isUser
                               ? MainAxisAlignment.end
                               : MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (!isUser)
-                              CircleAvatar(
-                                radius: 20,
-                                backgroundImage:
-                                    AssetImage('lib/images/botchat.png'),
-                                backgroundColor: Colors.transparent,
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8.0, top: 0),
+                                child: CircleAvatar(
+                                  radius: 16,
+                                  backgroundImage: AssetImage('lib/images/botchat.png'),
+                                  backgroundColor: Colors.transparent,
+                                ),
                               ),
-                            const SizedBox(width: 8),
                             Flexible(
-                              child: Container(
+                                child: Container(constraints: isUser ? const BoxConstraints(maxWidth: 700)
+                                    : null,
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 12),
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     colors: isUser
                                         ? [
-                                            Color.fromARGB(255, 211, 207, 214),
-                                            Color.fromARGB(255, 113, 91, 156)
+                                            Color.fromARGB(255, 75, 73, 77),
+                                            Color.fromARGB(255, 67, 67, 68)
                                           ]
-                                        : [Colors.white, Colors.white],
+                                        : [
+                                            Color(0xFF1E1A2B),
+                                            Color(0xFF1E1A2B)
+                                          ],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                   ),
@@ -238,8 +242,31 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   data: msg['content'] ?? '',
                                   styleSheet: MarkdownStyleSheet(
                                     p: const TextStyle(
-                                        color: Colors.black, fontSize: 16),
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      height: 1.5,
+                                    ),
+                                    code: const TextStyle(
+                                      color: Colors.white,
+                                      backgroundColor: Color(0xFF2D2B38),
+                                      fontSize: 14,
+                                    ),
+                                    codeblockDecoration: BoxDecoration(
+                                      color: const Color(0xFF2D2B38),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    blockquote: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 16,
+                                      height: 1.5,
+                                    ),
+                                    listBullet: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
                                   ),
+                                  selectable: true,
+                                  softLineBreak: true,
                                 ),
                               ),
                             ),
@@ -271,7 +298,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             child: Column(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric( vertical: 12),
                   // decoration: BoxDecoration(
                   //   color: const Color.fromARGB(255, 51, 47, 60),
                   //   borderRadius: BorderRadius.circular(24),
