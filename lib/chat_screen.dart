@@ -38,6 +38,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _controller.clear();
     _scrollToBottom();
 
+    // Lưu trạng thái sau khi thêm tin nhắn người dùng
+    _saveChats();
+
     // Sử dụng try-catch để xử lý lỗi khi unfocus
     try {
       _textFieldFocusNode.unfocus();
@@ -51,10 +54,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       canSendMessage = false;
     });
 
-    // Lưu trạng thái sau khi thêm tin nhắn người dùng
-    _saveChats();
-
-    String botResponse = await _chatService.sendMessage(userMessage);
+    // Truyền context vào sendMessage để có thể hiển thị toast khi không có mạng
+    String botResponse = await _chatService.sendMessage(userMessage, context);
 
     setState(() {
       allChats[currentChatId]!.add({'role': 'bot', 'content': botResponse});
@@ -635,7 +636,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           child: _buildSidebar(),
         ),
         appBar: AppBar(
-          title: Text(currentChatId),
+          title: Text(currentChatId, style: TextStyle(color: Colors.white,) ,),
           centerTitle: true,
           elevation: 0,
           backgroundColor: Colors.transparent,
