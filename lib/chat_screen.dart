@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'services/gemini_service.dart';
 import 'services/clipboard_service.dart';
+import 'services/storage_service.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter/gestures.dart';
 
-// Flutter web không thể import cụ thể dart:html mà phải thông qua kỹ thuật conditional imports
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -16,6 +16,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final GeminiService _chatService = GeminiService();
+  final StorageService _storageService = StorageService();
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _textFieldFocusNode = FocusNode();
@@ -50,11 +51,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       canSendMessage = false;
     });
 
+    // Lưu trạng thái sau khi thêm tin nhắn người dùng
+    _saveChats();
+
     String botResponse = await _chatService.sendMessage(userMessage);
 
     setState(() {
       allChats[currentChatId]!.add({'role': 'bot', 'content': botResponse});
     });
+    
+    // Lưu trạng thái sau khi nhận tin nhắn từ bot
+    _saveChats();
+    
     _scrollToBottom();
   }
 
@@ -64,6 +72,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       currentChatId = 'Chat $chatCounter';
       allChats[currentChatId] = [];
     });
+    
+    // Lưu trạng thái sau khi tạo chat mới
+    _saveChats();
+  }
+
+  // Phương thức lưu cuộc trò chuyện
+  Future<void> _saveChats() async {
+    await _storageService.saveChats(allChats);
+  }
+
+  // Phương thức tải cuộc trò chuyện
+  Future<void> _loadChats() async {
+    final savedChats = await _storageService.loadChats();
+    if (savedChats.isNotEmpty) {
+      setState(() {
+        allChats = savedChats;
+        // Lấy ID chat cuối cùng
+        currentChatId = allChats.keys.last;
+        // Cập nhật chatCounter để giá trị mới không bị trùng
+        chatCounter = allChats.keys.length;
+      });
+    } else {
+      _createNewChat();
+    }
   }
 
   void _scrollToBottom() {
@@ -98,7 +130,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _createNewChat();
+    // Tải lại dữ liệu chat từ bộ nhớ cục bộ
+    _loadChats();
   }
 
   @override
@@ -128,26 +161,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Widget _buildSidebar() {
     return Container(
       width: 260,
-      color: const Color(0xFF202123),
+      color: const Color.fromARGB(220, 42, 37, 56),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
             decoration: const BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: Color.fromARGB(255, 53, 54, 60), width: 0.5),
               ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: IconButton(
-                    icon: Icon(Icons.view_sidebar_outlined, color: Colors.white),
-                    tooltip: 'Đóng/mở sidebar',
-                    onPressed: _toggleSidebar,
-                  ),
+                IconButton(
+                  icon: Icon(Icons.view_sidebar_outlined, color: Colors.white),
+                  onPressed: _toggleSidebar,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -161,7 +190,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.edit_attributes_outlined, color: Colors.white),
+                  icon: Icon(Icons.edit_square, color: Colors.white),
                   tooltip: 'Đoạn chat mới',
                   onPressed: _createNewChat,
                 ),
@@ -225,18 +254,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 top: BorderSide(color: Color(0xFF444654), width: 0.5),
               ),
             ),
-            child: Row(
+            child: Column(
               children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Colors.grey.shade700,
-                  child: const Text('SI',
-                      style: TextStyle(color: Colors.white, fontSize: 14)),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Cài đặt',
-                  style: TextStyle(color: Colors.white, fontSize: 15),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.grey.shade700,
+                      child: const Text('SI',
+                          style: TextStyle(color: Colors.white, fontSize: 14)),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Cài đặt',
+                      style: TextStyle(color: Colors.white, fontSize: 15),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -253,20 +286,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return Scaffold(
       backgroundColor: const Color(0xFF1E1A2B),
       appBar: AppBar(
-        title: Text(currentChatId),
+        title: Text(currentChatId, style: TextStyle(color: Colors.white),),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFE727ff), Color(0xFF7c2f77)],
-              begin: Alignment.bottomLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        // Chỉ hiển thị nút mở sidebar khi sidebar đang đóng, nếu sidebar mở thì không hiển thị
+        // flexibleSpace: Container(
+        //   decoration: const BoxDecoration(
+        //     gradient: LinearGradient(
+        //       colors: [Color(0xFFE727ff), Color(0xFF7c2f77)],
+        //       begin: Alignment.bottomLeft,
+        //       end: Alignment.bottomRight,
+        //     ),
+        //   ),
+        // ),
         leading: isDesktopMode(context) && !_isSidebarVisible 
           ? IconButton(
               icon: Icon(Icons.view_sidebar_outlined, color: Colors.white),
@@ -274,15 +306,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               onPressed: _toggleSidebar,
             )
           : null,
+        // Hiển thị icon edit_square ở góc phải khi sidebar đóng trong chế độ desktop
         actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.add_comment_outlined,
-              color: Color.fromARGB(255, 174, 173, 173),
+          if (isDesktopMode(context) && !_isSidebarVisible)
+            IconButton(
+              icon: const Icon(
+                Icons.edit_square,
+                color: Colors.white,
+              ),
+              tooltip: 'Đoạn chat mới',
+              onPressed: _createNewChat,
             ),
-            tooltip: 'Đoạn chat mới',
-            onPressed: _createNewChat,
-          ),
         ],
       ),
       body: _buildChatContent(messages),
@@ -597,6 +631,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return Scaffold(
         backgroundColor: const Color(0xFF1E1A2B),
         drawer: Drawer(
+          backgroundColor: const Color.fromARGB(220, 42, 37, 56),
           child: _buildSidebar(),
         ),
         appBar: AppBar(
@@ -604,6 +639,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           centerTitle: true,
           elevation: 0,
           backgroundColor: Colors.transparent,
+          // Thêm icon view_sidebar_outlined vào leading
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(
+                Icons.view_sidebar_outlined,
+                color: Colors.white,
+              ),
+              tooltip: 'Mở sidebar',
+              onPressed: () => Scaffold.of(context).openDrawer(),
+            ),
+          ),
           flexibleSpace: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -616,7 +662,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           actions: [
             IconButton(
               icon: const Icon(
-                Icons.add_comment_outlined,
+                Icons.edit_square,
                 color: Colors.white,
               ),
               tooltip: 'Đoạn chat mới',
