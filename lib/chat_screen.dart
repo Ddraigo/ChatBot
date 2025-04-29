@@ -1,3 +1,4 @@
+import 'package:chatbot/services/deepinfra_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'services/gemini_service.dart';
@@ -15,7 +16,8 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
-  final GeminiService _chatService = GeminiService();
+  //final GeminiService _chatService = GeminiService();
+  final DeepInfraService _chatService = DeepInfraService();
   final StorageService _storageService = StorageService();
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
