@@ -99,10 +99,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Future<String> _generateChatTitle(String message) async {
     try {
       String prompt =
-          'Tóm tắt câu hỏi sau thành một tiêu đề ngắn gọn (tối đa 30 ký tự, không dùng định dạng Markdown): "$message"';
+          'Tóm tắt câu hỏi sau thành một tiêu đề ngắn gọn (tối đa 5 từ, không dùng định dạng Markdown): $message';
       String summary = await _chatService.sendMessage(prompt, context);
-      // Loại bỏ ký tự Markdown như ** hoặc * nếu có
-      String cleanedSummary = summary.replaceAll(RegExp(r'[*_#]'), '').trim();
+      // Loại bỏ ký tự Markdown như ** hoặc * và dấu ngoặc kép " nếu có
+      String cleanedSummary = summary.replaceAll(RegExp(r'[*_#"]'), '').trim();
       // Cắt ngắn nếu vượt quá 30 ký tự
       if (cleanedSummary.length > 30) {
         cleanedSummary = '${cleanedSummary.substring(0, 27).trim()}...';
@@ -115,6 +115,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       // Fallback: Lấy 30 ký tự đầu
       const maxLength = 30;
       String trimmedMessage = message.trim();
+      // Loại bỏ dấu ngoặc kép trong fallback
+      trimmedMessage = trimmedMessage.replaceAll('"', '');
       if (trimmedMessage.length <= maxLength) {
         return trimmedMessage.isNotEmpty ? trimmedMessage : 'Chat $chatCounter';
       }
