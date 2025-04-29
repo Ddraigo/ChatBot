@@ -1,6 +1,7 @@
 import 'package:chatbot/services/deepinfra_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:markdown_widget/markdown_widget.dart';
 import 'services/gemini_service.dart';
 import 'services/clipboard_service.dart';
 import 'services/storage_service.dart';
@@ -491,9 +492,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                               value: 'delete',
                               child: Row(
                                 children: [
-                                  Icon(Icons.delete, color: Colors.white70),
+                                  Icon(Icons.delete_outline, color:  Color.fromARGB(179, 255, 93, 93)),
                                   SizedBox(width: 8),
-                                  Text('Xóa', style: TextStyle(color: Colors.white)),
+                                  Text('Xóa', style: TextStyle(color: Color.fromARGB(179, 241, 80, 80))),
                                 ],
                               ),
                             ),
@@ -680,27 +681,67 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                         fontSize: 16,
                                         height: 1.5,
                                       ),
-                                      code: const TextStyle(
-                                        color: Colors.white,
-                                        backgroundColor: Color(0xFF2D2B38),
+                                      code: TextStyle(
+                                        backgroundColor: Color(0xFF2B2B2B), // Dark background
+                                        color: const Color.fromARGB(255, 228, 163, 135),
+                                        fontFamily: 'Consolas',
                                         fontSize: 14,
                                       ),
                                       codeblockDecoration: BoxDecoration(
-                                        color: const Color(0xFF2D2B38),
+                                        color: Color(0xFF2B2B2B), // Dark background
                                         borderRadius: BorderRadius.circular(8),
                                       ),
+                                      codeblockPadding: EdgeInsets.all(16),
+                                     
+                                      // Custom styles cho các loại token khác nhau
+                                      a: TextStyle(color: Color(0xFF9876AA)), // Purple for identifiers
+                                      em: TextStyle(color: Color(0xFFCC7832)), // Orange for keywords
+                                      strong: TextStyle(color: Color(0xFF6897BB)), // Blue for numbers
+                                      del: TextStyle(color: Color(0xFF629755)), // Green for strings
                                       blockquote: const TextStyle(
                                         color: Colors.white70,
                                         fontSize: 16,
                                         height: 1.5,
+                                        fontStyle: FontStyle.italic,
                                       ),
+                                      blockquoteDecoration: BoxDecoration(
+                                        border: Border(
+                                          left: BorderSide(
+                                            color: Colors.grey.shade500,
+                                            width: 4,
+                                          ),
+                                        ),
+                                      ),
+                                      blockquotePadding: const EdgeInsets.only(left: 16),
                                       listBullet: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 16,
                                       ),
+                                      tableHead: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        backgroundColor: Colors.grey.shade800,
+                                      ),
+                                      tableBody: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                      tableBorder: TableBorder.all(
+                                        color: Colors.grey.shade600,
+                                        width: 1,
+                                      ),
+                                      tableColumnWidth: const FlexColumnWidth(),
+                                      tableCellsPadding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      tableCellsDecoration: BoxDecoration(
+                                        color: const Color(0xFF2D2B38),
+                                      ),
                                     ),
                                     selectable: true,
                                     softLineBreak: true,
+                                    shrinkWrap: true,
+
                                   ),
                                 ),
                                 Container(
