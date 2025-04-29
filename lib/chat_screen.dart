@@ -5,7 +5,7 @@ import 'services/clipboard_service.dart';
 import 'services/storage_service.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter/gestures.dart';
-
+import 'package:flutter/services.dart'; // Added for RawKeyboardListener
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -20,51 +20,103 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _textFieldFocusNode = FocusNode();
-
+  bool isProcessing = false; // Theo dõi trạng thái xử lý yêu cầu
   Map<String, List<Map<String, String>>> allChats = {};
   String currentChatId = '';
   int chatCounter = 0;
   bool canSendMessage = false;
-  // Biến để kiểm soát trạng thái hiển thị của sidebar
   bool _isSidebarVisible = true;
 
   void _sendMessage() async {
+    if (isProcessing || !canSendMessage) return;
+
     String userMessage = _controller.text.trim();
     if (userMessage.isEmpty || currentChatId.isEmpty) return;
 
+    bool isFirstMessage = allChats[currentChatId]!.isEmpty;
+
+    // Xóa nội dung TextField ngay lập tức và cập nhật trạng thái
     setState(() {
       allChats[currentChatId]!.add({'role': 'user', 'content': userMessage});
+      isProcessing = true;
+      canSendMessage = false;
+      _controller.clear(); // Xóa ngay tại đây
     });
-    _controller.clear();
-    _scrollToBottom();
 
-    // Lưu trạng thái sau khi thêm tin nhắn người dùng
+    _scrollToBottom();
     _saveChats();
 
-    // Sử dụng try-catch để xử lý lỗi khi unfocus
     try {
       _textFieldFocusNode.unfocus();
     } catch (e) {
-      // Bỏ qua lỗi focus
       if (kDebugMode) {
         print("Focus error ignored: $e");
       }
     }
-    setState(() {
-      canSendMessage = false;
-    });
 
-    // Truyền context vào sendMessage để có thể hiển thị toast khi không có mạng
-    String botResponse = await _chatService.sendMessage(userMessage, context);
+    // Nếu là tin nhắn đầu tiên, đổi tên đoạn chat
+    if (isFirstMessage) {
+      String newTitle = await _generateChatTitle(userMessage);
+      setState(() {
+        allChats[newTitle] = allChats[currentChatId]!;
+        allChats.remove(currentChatId);
+        currentChatId = newTitle;
+      });
+      _saveChats();
+    }
 
-    setState(() {
-      allChats[currentChatId]!.add({'role': 'bot', 'content': botResponse});
-    });
-    
-    // Lưu trạng thái sau khi nhận tin nhắn từ bot
-    _saveChats();
-    
-    _scrollToBottom();
+    try {
+      String botResponse = await _chatService.sendMessage(userMessage, context);
+
+      setState(() {
+        allChats[currentChatId]!.add({'role': 'bot', 'content': botResponse});
+      });
+
+      _saveChats();
+    } catch (e) {
+      if (kDebugMode) {
+        print("Error sending message: $e");
+      }
+      setState(() {
+        allChats[currentChatId]!.add({
+          'role': 'bot',
+          'content': 'Lỗi khi xử lý yêu cầu. Vui lòng thử lại.'
+        });
+      });
+    } finally {
+      setState(() {
+        isProcessing = false;
+        canSendMessage = _controller.text.trim().isNotEmpty;
+      });
+      _scrollToBottom();
+      _textFieldFocusNode.requestFocus();
+    }
+  }
+
+  Future<String> _generateChatTitle(String message) async {
+    try {
+      String prompt =
+          'Tóm tắt câu hỏi sau thành một tiêu đề ngắn gọn (tối đa 30 ký tự, không dùng định dạng Markdown): "$message"';
+      String summary = await _chatService.sendMessage(prompt, context);
+      // Loại bỏ ký tự Markdown như ** hoặc * nếu có
+      String cleanedSummary = summary.replaceAll(RegExp(r'[*_#]'), '').trim();
+      // Cắt ngắn nếu vượt quá 30 ký tự
+      if (cleanedSummary.length > 30) {
+        cleanedSummary = '${cleanedSummary.substring(0, 27).trim()}...';
+      }
+      return cleanedSummary.isNotEmpty ? cleanedSummary : 'Chat $chatCounter';
+    } catch (e) {
+      if (kDebugMode) {
+        print("Error generating title: $e");
+      }
+      // Fallback: Lấy 30 ký tự đầu
+      const maxLength = 30;
+      String trimmedMessage = message.trim();
+      if (trimmedMessage.length <= maxLength) {
+        return trimmedMessage.isNotEmpty ? trimmedMessage : 'Chat $chatCounter';
+      }
+      return '${trimmedMessage.substring(0, maxLength).trim()}...';
+    }
   }
 
   void _createNewChat() {
@@ -73,25 +125,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       currentChatId = 'Chat $chatCounter';
       allChats[currentChatId] = [];
     });
-    
-    // Lưu trạng thái sau khi tạo chat mới
+
     _saveChats();
   }
 
-  // Phương thức lưu cuộc trò chuyện
   Future<void> _saveChats() async {
     await _storageService.saveChats(allChats);
   }
 
-  // Phương thức tải cuộc trò chuyện
   Future<void> _loadChats() async {
     final savedChats = await _storageService.loadChats();
     if (savedChats.isNotEmpty) {
       setState(() {
         allChats = savedChats;
-        // Lấy ID chat cuối cùng
         currentChatId = allChats.keys.last;
-        // Cập nhật chatCounter để giá trị mới không bị trùng
         chatCounter = allChats.keys.length;
       });
     } else {
@@ -112,7 +159,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           );
         }
       } catch (e) {
-        // Bỏ qua lỗi khi scroll
         if (kDebugMode) {
           print("Scroll error ignored: $e");
         }
@@ -120,7 +166,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     });
   }
 
-  // Hàm đóng/mở sidebar
   void _toggleSidebar() {
     setState(() {
       _isSidebarVisible = !_isSidebarVisible;
@@ -131,15 +176,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Tải lại dữ liệu chat từ bộ nhớ cục bộ
     _loadChats();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Xử lý khi ứng dụng thay đổi trạng thái
     if (state == AppLifecycleState.resumed) {
-      // Ứng dụng được tiếp tục
       _textFieldFocusNode.unfocus();
     }
   }
@@ -153,12 +195,32 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  // Kiểm tra nếu đang ở chế độ màn hình lớn (desktop)
   bool isDesktopMode(BuildContext context) {
     return MediaQuery.of(context).size.width > 900;
   }
 
-  // Widget hiển thị sidebar
+  void _deleteChat(String chatId) {
+  setState(() {
+    allChats.remove(chatId);
+    // Nếu đoạn chat bị xóa là đoạn chat hiện tại, chuyển về đoạn chat khác
+    if (chatId == currentChatId) {
+      if (allChats.isNotEmpty) {
+        currentChatId = allChats.keys.last; // Chuyển về đoạn chat cuối cùng
+      } else {
+        chatCounter = 0; // Reset chatCounter nếu không còn đoạn chat
+        _createNewChat(); // Tạo đoạn chat mới
+      }
+    }
+  });
+
+  _saveChats();
+
+  // Tự động focus vào TextField sau khi xóa
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _textFieldFocusNode.requestFocus();
+  });
+}
+
   Widget _buildSidebar() {
     return Container(
       width: 260,
@@ -169,7 +231,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
             decoration: const BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: Color.fromARGB(255, 53, 54, 60), width: 0.5),
+                bottom: BorderSide(
+                    color: Color.fromARGB(255, 53, 54, 60), width: 0.5),
               ),
             ),
             child: Row(
@@ -213,7 +276,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
-                ...allChats.keys.map((chatId) => Container(
+                ...allChats.keys.toList().reversed.map((chatId) => Container(
                       margin: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
@@ -234,6 +297,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                             color: Colors.grey.shade200,
                             fontSize: 15,
                           ),
+                        ),
+                        trailing: IconButton(
+                          icon: Icon(
+                            Icons.delete_outline,
+                            color: Colors.grey.shade400,
+                            size: 20,
+                          ),
+                          tooltip: 'Xóa đoạn chat',
+                          onPressed: () {
+                            _deleteChat(chatId);
+                          },
                         ),
                         onTap: () {
                           setState(() {
@@ -280,34 +354,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  // Widget hiển thị content chat với AppBar
   Widget _buildChatArea() {
     final messages = allChats[currentChatId] ?? [];
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E1A2B),
       appBar: AppBar(
-        title: Text(currentChatId, style: TextStyle(color: Colors.white),),
+        title: Text(currentChatId, style: TextStyle(color: Colors.white)),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
-        // flexibleSpace: Container(
-        //   decoration: const BoxDecoration(
-        //     gradient: LinearGradient(
-        //       colors: [Color(0xFFE727ff), Color(0xFF7c2f77)],
-        //       begin: Alignment.bottomLeft,
-        //       end: Alignment.bottomRight,
-        //     ),
-        //   ),
-        // ),
-        leading: isDesktopMode(context) && !_isSidebarVisible 
-          ? IconButton(
-              icon: Icon(Icons.view_sidebar_outlined, color: Colors.white),
-              tooltip: 'Hiện sidebar',
-              onPressed: _toggleSidebar,
-            )
-          : null,
-        // Hiển thị icon edit_square ở góc phải khi sidebar đóng trong chế độ desktop
+        leading: isDesktopMode(context) && !_isSidebarVisible
+            ? IconButton(
+                icon: Icon(Icons.view_sidebar_outlined, color: Colors.white),
+                tooltip: 'Hiện sidebar',
+                onPressed: _toggleSidebar,
+              )
+            : null,
         actions: [
           if (isDesktopMode(context) && !_isSidebarVisible)
             IconButton(
@@ -324,7 +387,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  // Widget chỉ hiển thị nội dung chat (không bao gồm AppBar)
   Widget _buildChatContent(List<Map<String, String>> messages) {
     return Column(
       children: [
@@ -461,7 +523,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(15),
                                       onTap: () {
-                                        // Sử dụng ClipboardService để xử lý đa nền tảng
                                         ClipboardService.copyToClipboard(
                                             context, msg['content'] ?? '');
                                       },
@@ -510,7 +571,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   children: [
-                    // TextField chính
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -536,32 +596,63 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   minThumbLength: 50,
                                 ),
                               ),
-                              child: TextField(
-                                controller: _controller,
-                                focusNode: _textFieldFocusNode,
-                                onSubmitted: (_) => _sendMessage(),
-                                onChanged: (text) {
-                                  setState(() {
-                                    canSendMessage = text.trim().isNotEmpty;
-                                  });
+                              child: RawKeyboardListener(
+                                focusNode: FocusNode(),
+                                onKey: (RawKeyEvent event) {
+                                  if (event is RawKeyDownEvent) {
+                                    if (event.logicalKey ==
+                                        LogicalKeyboardKey.enter) {
+                                      if (event.isShiftPressed) {
+                                        // Shift + Enter: Insert new line
+                                        final text = _controller.text;
+                                        final selection = _controller.selection;
+                                        final newText =
+                                            '${text.substring(0, selection.baseOffset)}${text.substring(selection.baseOffset)}';
+                                        _controller.value = TextEditingValue(
+                                          text: newText,
+                                          selection: TextSelection.collapsed(
+                                            offset: selection.baseOffset + 1,
+                                          ),
+                                        );
+                                      } else {
+                                        // Enter: Send message
+                                        if (canSendMessage && !isProcessing) {
+                                          _sendMessage();
+                                        }
+                                      }
+                                    }
+                                  }
                                 },
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w400,
+                                child: TextField(
+                                  controller: _controller,
+                                  focusNode: _textFieldFocusNode,
+                                  onChanged: (text) {
+                                    setState(() {
+                                      canSendMessage = text.trim().isNotEmpty;
+                                    });
+                                  },
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  cursorColor: Colors.white,
+                                  decoration: InputDecoration(
+                                    hintText: isProcessing
+                                        ? 'Đang xử lý...'
+                                        : 'Hỏi bất kỳ điều gì',
+                                    hintStyle: TextStyle(color: Colors.grey),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 4, vertical: 14),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                  ),
+                                  minLines: 1,
+                                  maxLines: 6,
+                                  scrollPhysics: const ClampingScrollPhysics(),
+                                  enabled:
+                                      !isProcessing, // Vô hiệu hóa khi đang xử lý
                                 ),
-                                cursorColor: Colors.white,
-                                decoration: const InputDecoration(
-                                  hintText: 'Hỏi bất kỳ điều gì',
-                                  hintStyle: TextStyle(color: Colors.grey),
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 4, vertical: 14),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                ),
-                                minLines: 1,
-                                maxLines: 6,
-                                scrollPhysics: const ClampingScrollPhysics(),
                               ),
                             );
                           },
@@ -575,7 +666,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Nút Thêm
                   IconButton(
                     onPressed: () {
                       // Chức năng nút thêm
@@ -584,20 +674,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
-
-                  // Nút gửi
                   InkWell(
-                    onTap: _sendMessage,
+                    onTap:
+                        (canSendMessage && !isProcessing) ? _sendMessage : null,
                     child: Container(
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: canSendMessage
+                        color: (canSendMessage && !isProcessing)
                             ? const Color.fromARGB(255, 192, 90, 229)
                             : const Color.fromARGB(255, 71, 59, 70),
                       ),
-                      child: const Icon(Icons.arrow_upward_rounded,
-                          color: Colors.white, size: 18),
+                      child: Icon(
+                        isProcessing
+                            ? Icons.hourglass_empty
+                            : Icons.arrow_upward_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
                   ),
                 ],
@@ -613,14 +707,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final bool isDesktop = isDesktopMode(context);
 
-    // Trong chế độ desktop, sidebar và content ngang hàng nhau, AppBar chỉ ở phần content
-    // Trong chế độ mobile, sử dụng Scaffold với drawer
     if (isDesktop) {
       return Material(
         color: const Color(0xFF1E1A2B),
         child: Row(
           children: [
-            // Chỉ hiển thị sidebar nếu _isSidebarVisible = true
             if (_isSidebarVisible) _buildSidebar(),
             Expanded(
               child: _buildChatArea(),
@@ -636,11 +727,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           child: _buildSidebar(),
         ),
         appBar: AppBar(
-          title: Text(currentChatId, style: TextStyle(color: Colors.white,) ,),
+          title: Text(currentChatId, style: TextStyle(color: Colors.white)),
           centerTitle: true,
           elevation: 0,
           backgroundColor: Colors.transparent,
-          // Thêm icon view_sidebar_outlined vào leading
           leading: Builder(
             builder: (context) => IconButton(
               icon: const Icon(
