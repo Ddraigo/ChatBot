@@ -223,6 +223,98 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   });
 }
 
+  void _renameChat(String oldChatId, String newTitle) {
+    if (newTitle.isEmpty || oldChatId == newTitle || allChats.containsKey(newTitle)) return;
+    
+    setState(() {
+      // Lưu messages của chat cũ
+      final messages = allChats[oldChatId]!;
+      // Xóa chat cũ
+      allChats.remove(oldChatId);
+      // Tạo chat mới với tên mới
+      allChats[newTitle] = messages;
+      
+      // Nếu đang ở chat được đổi tên, cập nhật currentChatId
+      if (oldChatId == currentChatId) {
+        currentChatId = newTitle;
+      }
+    });
+
+    _saveChats();
+  }
+
+  void _showChatOptions(BuildContext context, String chatId) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          color: const Color(0xFF343541),
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.white),
+                title: const Text('Đổi tên', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Hiển thị dialog đổi tên
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      String newTitle = chatId;
+                      return AlertDialog(
+                        backgroundColor: const Color(0xFF343541),
+                        title: const Text('Đổi tên đoạn chat',
+                            style: TextStyle(color: Colors.white)),
+                        content: TextField(
+                          style: const TextStyle(color: Colors.white),
+                          decoration: const InputDecoration(
+                            hintText: 'Nhập tên mới',
+                            hintStyle: TextStyle(color: Colors.grey),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.grey),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white),
+                            ),
+                          ),
+                          onChanged: (value) => newTitle = value,
+                          controller: TextEditingController(text: chatId),
+                        ),
+                        actions: <Widget>[
+                          TextButton(
+                            child: const Text('Hủy',
+                                style: TextStyle(color: Colors.grey)),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          TextButton(
+                            child: const Text('Lưu',
+                                style: TextStyle(color: Colors.white)),
+                            onPressed: () {
+                              _renameChat(chatId, newTitle.trim());
+                              Navigator.pop(context);
+                            },
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Xóa', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _deleteChat(chatId);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildSidebar() {
     return Container(
       width: 260,
@@ -279,8 +371,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 ...allChats.keys.toList().reversed.map((chatId) => Container(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
                         color: currentChatId == chatId
@@ -293,23 +384,120 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           color: Colors.grey.shade400,
                           size: 20,
                         ),
-                        title: Text(
-                          chatId,
-                          style: TextStyle(
-                            color: Colors.grey.shade200,
-                            fontSize: 15,
+                        title: Tooltip(
+                          message: chatId,
+                          child: Text(
+                            chatId,
+                            style: TextStyle(
+                              color: Colors.grey.shade200,
+                              fontSize: 15,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        trailing: IconButton(
-                          icon: Icon(
-                            Icons.delete_outline,
-                            color: Colors.grey.shade400,
-                            size: 20,
+                        trailing: PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, color: Colors.white70),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
                           ),
-                          tooltip: 'Xóa đoạn chat',
-                          onPressed: () {
-                            _deleteChat(chatId);
+                          elevation: 8,
+                          color: const Color(0xFF2D2B38),
+                          onSelected: (value) {
+                            if (value == 'rename') {
+                              // Hiển thị dialog đổi tên
+                              showDialog(
+                                context: context,
+                                builder: (context) {
+                                  final TextEditingController controller = TextEditingController(text: chatId);
+                                  return AlertDialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(15.0),
+                                    ),
+                                    title: const Text('Đổi tên đoạn chat'),
+                                    content: TextField(
+                                      controller: controller,
+                                      decoration: const InputDecoration(
+                                        hintText: 'Nhập tên mới',
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                                        ),
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Hủy'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          if (controller.text.isNotEmpty) {
+                                            setState(() {
+                                              final messages = allChats[chatId];
+                                              allChats.remove(chatId);
+                                              allChats[controller.text] = messages!;
+                                              if (currentChatId == chatId) {
+                                                currentChatId = controller.text;
+                                              }
+                                              _saveChats();
+                                            });
+                                            Navigator.pop(context);
+                                          }
+                                        },
+                                        child: const Text('Lưu'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            } else if (value == 'delete') {
+                              // Hiển thị dialog xác nhận xóa
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(15.0),
+                                  ),
+                                  title: const Text('Xóa đoạn chat'),
+                                  content: const Text('Bạn có chắc chắn muốn xóa đoạn chat này không?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Hủy'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        _deleteChat(chatId);
+                                        Navigator.pop(context);
+                                      },
+                                      child: const Text('Xóa'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
                           },
+                          itemBuilder: (BuildContext context) => [
+                            const PopupMenuItem<String>(
+                              value: 'rename',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.edit, color: Colors.white70),
+                                  SizedBox(width: 8),
+                                  Text('Đổi tên', style: TextStyle(color: Colors.white)),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete, color: Colors.white70),
+                                  SizedBox(width: 8),
+                                  Text('Xóa', style: TextStyle(color: Colors.white)),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                         onTap: () {
                           setState(() {
