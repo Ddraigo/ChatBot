@@ -8,7 +8,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 
 class DeepInfraService {
   static const String _apiKey =
-      'hsRbY93uPGEk9xRkuNiQqCx6oE4c7F9l'; // 👈 thay bằng key của bạn
+      'hsRbY93uPGEk9xRkuNiQqCx6oE4c7F9l'; 
   bool _isOffline = false;
 
   Future<bool> _checkConnectivity() async {
